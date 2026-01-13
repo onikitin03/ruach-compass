@@ -13,9 +13,9 @@ import {
   SafetyCheckResultSchema
 } from '@ruach/shared';
 
-// Model configuration
-const MODEL_FLASH = 'gemini-2.0-flash';  // Fast, cheap - daily tasks
-const MODEL_PRO = 'gemini-2.0-pro';      // Deep reasoning - complex analysis
+// Model configuration - using latest available models
+const MODEL_FLASH = 'gemini-2.5-flash';  // Fast, cheap - daily tasks (stable)
+const MODEL_PRO = 'gemini-2.5-flash';    // Using flash for both to stay in free tier
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
