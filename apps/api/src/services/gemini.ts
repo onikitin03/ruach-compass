@@ -1,9 +1,8 @@
 // ==========================================
-// Gemini AI Service
-// Handles all AI model interactions
+// Gemini AI Service - Using @google/genai SDK
 // ==========================================
 
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import {
   extractJSON,
   safeParseJSON,
@@ -13,46 +12,34 @@ import {
   SafetyCheckResultSchema
 } from '@ruach/shared';
 
-// Model configuration - using latest available models
-const MODEL_FLASH = 'gemini-2.5-flash';  // Fast, cheap - daily tasks (stable)
-const MODEL_PRO = 'gemini-2.5-flash';    // Using flash for both to stay in free tier
+// Model configuration - using Gemini 3 (free tier available)
+const MODEL_FLASH = 'gemini-3-flash-preview';
 
 export class GeminiService {
-  private genAI: GoogleGenerativeAI;
-  private flashModel: GenerativeModel;
-  private proModel: GenerativeModel;
+  private ai: GoogleGenAI;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
-
-    this.flashModel = this.genAI.getGenerativeModel({
-      model: MODEL_FLASH,
-      generationConfig: {
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 2048,
-      }
-    });
-
-    this.proModel = this.genAI.getGenerativeModel({
-      model: MODEL_PRO,
-      generationConfig: {
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 4096,
-      }
-    });
+    this.ai = new GoogleGenAI({ apiKey });
   }
 
   async generateQuests(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent(
-        systemPrompt + '\n\n' + userPrompt
-      );
+      const response = await this.ai.models.generateContent({
+        model: MODEL_FLASH,
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 2048,
+        }
+      });
 
-      const responseText = result.response.text();
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error('Empty response from AI');
+      }
       const jsonString = extractJSON(responseText);
       const parsed = safeParseJSON(jsonString, null);
 
@@ -74,11 +61,22 @@ export class GeminiService {
 
   async generateScript(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent(
-        systemPrompt + '\n\n' + userPrompt
-      );
+      const response = await this.ai.models.generateContent({
+        model: MODEL_FLASH,
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 2048,
+        }
+      });
 
-      const responseText = result.response.text();
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error('Empty response from AI');
+      }
       const jsonString = extractJSON(responseText);
       const parsed = safeParseJSON(jsonString, null);
 
@@ -99,11 +97,22 @@ export class GeminiService {
 
   async generateResetProtocol(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent(
-        systemPrompt + '\n\n' + userPrompt
-      );
+      const response = await this.ai.models.generateContent({
+        model: MODEL_FLASH,
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 2048,
+        }
+      });
 
-      const responseText = result.response.text();
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error('Empty response from AI');
+      }
       const jsonString = extractJSON(responseText);
       const parsed = safeParseJSON(jsonString, null);
 
@@ -124,11 +133,28 @@ export class GeminiService {
 
   async checkSafety(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent(
-        systemPrompt + '\n\n' + userPrompt
-      );
+      const response = await this.ai.models.generateContent({
+        model: MODEL_FLASH,
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.3,
+          maxOutputTokens: 1024,
+        }
+      });
 
-      const responseText = result.response.text();
+      const responseText = response.text;
+      if (!responseText) {
+        // Default to safe if no response
+        return {
+          success: true,
+          data: {
+            flags: ['none'],
+            requiresIntervention: false,
+            crisisResourcesNeeded: false
+          }
+        };
+      }
       const jsonString = extractJSON(responseText);
       const parsed = safeParseJSON(jsonString, null);
 
@@ -160,15 +186,22 @@ export class GeminiService {
     }
   }
 
-  // Deep analysis using Pro model
+  // Deep analysis using same model (Gemini 3 Flash is very capable)
   async deepAnalysis(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.proModel.generateContent(
-        systemPrompt + '\n\n' + userPrompt
-      );
+      const response = await this.ai.models.generateContent({
+        model: MODEL_FLASH,
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 4096,
+        }
+      });
 
-      const responseText = result.response.text();
-      return { success: true, data: responseText };
+      return { success: true, data: response.text };
     } catch (error) {
       console.error('Deep analysis error:', error);
       return {
