@@ -51,8 +51,11 @@ const apiFetch = async <T>(
 ): Promise<{ success: true; data: T } | { success: false; error: string }> => {
   try {
     const id = await getDeviceId();
+    const url = `${API_BASE_URL}${endpoint}`;
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    console.log(`[API] ${options.method || 'GET'} ${url}`);
+
+    const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -64,6 +67,9 @@ const apiFetch = async <T>(
 
     const data = await response.json();
 
+    console.log(`[API] Response status: ${response.status}`);
+    console.log(`[API] Response data:`, JSON.stringify(data).substring(0, 500));
+
     if (!response.ok) {
       return {
         success: false,
@@ -73,7 +79,7 @@ const apiFetch = async <T>(
 
     return { success: true, data: data as T };
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('[API] Error:', error);
     return {
       success: false,
       error: 'Нет связи с сервером. Проверь интернет.'

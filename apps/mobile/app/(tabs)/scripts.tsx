@@ -69,29 +69,36 @@ export default function ScriptsScreen() {
 
   const generateScripts = async (scenario: ScenarioType) => {
     setLoading(true);
+    setScripts(null); // Reset scripts before fetching
 
     try {
+      console.log('[Scripts] Generating for scenario:', scenario);
       const result = await api.generateScript({
         scenarioType: scenario,
         userProfile: userProfile || {},
       });
 
-      if (result.success) {
+      console.log('[Scripts] API result:', JSON.stringify(result, null, 2));
+
+      if (result.success && result.data?.variants) {
         setScripts(result.data.variants);
-        setToneNotes(result.data.toneNotesRu);
+        setToneNotes(result.data.toneNotesRu || '');
 
         // Cache the result
         cacheScript(scenario, {
           id: scenario,
           scenarioType: scenario,
           variants: result.data.variants,
-          toneNotesRu: result.data.toneNotesRu,
-          safetyFlags: result.data.safetyFlags,
+          toneNotesRu: result.data.toneNotesRu || '',
+          safetyFlags: result.data.safetyFlags || [],
           generatedAt: new Date().toISOString(),
         });
+      } else {
+        console.error('[Scripts] API returned error:', result.success ? 'Missing variants' : result.error);
+        // Keep scripts null to show error state
       }
     } catch (error) {
-      console.error('Error generating scripts:', error);
+      console.error('[Scripts] Exception:', error);
     }
 
     setLoading(false);

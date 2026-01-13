@@ -13,6 +13,9 @@ import healthRoutes from './routes/health';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy for Railway/Heroku/etc (behind reverse proxy)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({

@@ -61,6 +61,7 @@ export class GeminiService {
 
   async generateScript(systemPrompt: string, userPrompt: string) {
     try {
+      console.log('[Gemini] Generating script...');
       const response = await this.ai.models.generateContent({
         model: MODEL_FLASH,
         contents: userPrompt,
@@ -74,20 +75,27 @@ export class GeminiService {
       });
 
       const responseText = response.text;
+      console.log('[Gemini] Raw response:', responseText?.substring(0, 500));
+
       if (!responseText) {
         throw new Error('Empty response from AI');
       }
       const jsonString = extractJSON(responseText);
+      console.log('[Gemini] Extracted JSON:', jsonString.substring(0, 500));
+
       const parsed = safeParseJSON(jsonString, null);
 
       if (!parsed) {
-        throw new Error('Failed to parse AI response');
+        throw new Error('Failed to parse AI response as JSON');
       }
 
+      console.log('[Gemini] Parsed object keys:', Object.keys(parsed as object));
+
       const validated = ScriptGenerationResponseSchema.parse(parsed);
+      console.log('[Gemini] Validation passed');
       return { success: true, data: validated };
     } catch (error) {
-      console.error('Script generation error:', error);
+      console.error('[Gemini] Script generation error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
