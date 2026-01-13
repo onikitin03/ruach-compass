@@ -24,6 +24,7 @@ export class GeminiService {
 
   async generateQuests(systemPrompt: string, userPrompt: string) {
     try {
+      console.log('[Gemini] Generating quests...');
       const response = await this.ai.models.generateContent({
         model: MODEL_FLASH,
         contents: userPrompt,
@@ -37,6 +38,8 @@ export class GeminiService {
       });
 
       const responseText = response.text;
+      console.log('[Gemini] Raw quests response:', responseText?.substring(0, 500));
+
       if (!responseText) {
         throw new Error('Empty response from AI');
       }
@@ -44,14 +47,17 @@ export class GeminiService {
       const parsed = safeParseJSON(jsonString, null);
 
       if (!parsed) {
-        throw new Error('Failed to parse AI response');
+        throw new Error('Failed to parse AI response as JSON');
       }
+
+      console.log('[Gemini] Parsed quests object keys:', Object.keys(parsed as object));
 
       // Validate against schema
       const validated = QuestGenerationResponseSchema.parse(parsed);
+      console.log('[Gemini] Quest validation passed');
       return { success: true, data: validated };
     } catch (error) {
-      console.error('Quest generation error:', error);
+      console.error('[Gemini] Quest generation error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
