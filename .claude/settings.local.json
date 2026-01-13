@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo:*)",
+      "Bash(npm run build:*)",
+      "Bash(watchman watch-del-all:*)",
+      "WebSearch"
+    ]
+  }
+}

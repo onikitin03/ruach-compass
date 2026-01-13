@@ -1,0 +1,23 @@
+{
+  "name": "ruach-compass",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api": "npm run dev --workspace=apps/api",
+    "mobile": "npm run start --workspace=apps/mobile",
+    "build:api": "npm run build --workspace=apps/api",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "react-native": "0.81.5",
+    "react": "19.1.0"
+  }
+}
