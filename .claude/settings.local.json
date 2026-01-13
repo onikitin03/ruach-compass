@@ -4,7 +4,12 @@
       "Bash(npx expo:*)",
       "Bash(npm run build:*)",
       "Bash(watchman watch-del-all:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
     ]
   }
 }

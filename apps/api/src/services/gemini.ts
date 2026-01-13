@@ -48,9 +48,9 @@ export class GeminiService {
 
   async generateQuests(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent([
-        { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }
-      ]);
+      const result = await this.flashModel.generateContent(
+        systemPrompt + '\n\n' + userPrompt
+      );
 
       const responseText = result.response.text();
       const jsonString = extractJSON(responseText);
@@ -74,9 +74,9 @@ export class GeminiService {
 
   async generateScript(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent([
-        { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }
-      ]);
+      const result = await this.flashModel.generateContent(
+        systemPrompt + '\n\n' + userPrompt
+      );
 
       const responseText = result.response.text();
       const jsonString = extractJSON(responseText);
@@ -99,9 +99,9 @@ export class GeminiService {
 
   async generateResetProtocol(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent([
-        { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }
-      ]);
+      const result = await this.flashModel.generateContent(
+        systemPrompt + '\n\n' + userPrompt
+      );
 
       const responseText = result.response.text();
       const jsonString = extractJSON(responseText);
@@ -124,9 +124,9 @@ export class GeminiService {
 
   async checkSafety(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.flashModel.generateContent([
-        { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }
-      ]);
+      const result = await this.flashModel.generateContent(
+        systemPrompt + '\n\n' + userPrompt
+      );
 
       const responseText = result.response.text();
       const jsonString = extractJSON(responseText);
@@ -163,9 +163,9 @@ export class GeminiService {
   // Deep analysis using Pro model
   async deepAnalysis(systemPrompt: string, userPrompt: string) {
     try {
-      const result = await this.proModel.generateContent([
-        { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }
-      ]);
+      const result = await this.proModel.generateContent(
+        systemPrompt + '\n\n' + userPrompt
+      );
 
       const responseText = result.response.text();
       return { success: true, data: responseText };
