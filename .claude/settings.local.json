@@ -14,7 +14,19 @@
       "Bash(npm uninstall:*)",
       "Bash(npm install:*)",
       "Bash(curl:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__deploy_edge_function",
+      "mcp__supabase__list_edge_functions",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_publishable_keys",
+      "Bash(npx tsc:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }
