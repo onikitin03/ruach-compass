@@ -1,8 +1,9 @@
 // ==========================================
 // Scripts Screen - Relationship Response Scripts
+// Redesigned with proper accordion UX
 // ==========================================
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,79 +11,131 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
-import { Card, Button } from '@/components';
+import { Card } from '@/components';
 import { useStore } from '@/store/useStore';
 import { api } from '@/services/api';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 import { SCENARIO_TYPE_RU, type ScenarioType, type ScriptVariants } from '@ruach/shared';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 type ScriptVariant = keyof ScriptVariants;
 
-const VARIANT_LABELS: Record<ScriptVariant, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  shortRu: { label: 'Короткий', icon: 'remove-circle', color: Colors.info },
-  neutralRu: { label: 'Нейтральный', icon: 'ellipse', color: Colors.calm },
-  boundaryRu: { label: 'Граница', icon: 'shield', color: Colors.warning },
-  exitRu: { label: 'Выход', icon: 'exit', color: Colors.error },
+interface ScenarioData {
+  scripts: ScriptVariants | null;
+  toneNotes: string;
+  loading: boolean;
+  error: boolean;
+}
+
+const VARIANT_CONFIG: Record<ScriptVariant, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; description: string }> = {
+  shortRu: {
+    label: 'Короткий',
+    icon: 'flash-outline',
+    color: Colors.info,
+    description: 'Минимальная реакция'
+  },
+  neutralRu: {
+    label: 'Нейтральный',
+    icon: 'chatbubble-outline',
+    color: Colors.calm,
+    description: 'Спокойный ответ'
+  },
+  boundaryRu: {
+    label: 'Граница',
+    icon: 'shield-outline',
+    color: Colors.warning,
+    description: 'Чёткие границы'
+  },
+  exitRu: {
+    label: 'Выход',
+    icon: 'exit-outline',
+    color: Colors.error,
+    description: 'Завершение разговора'
+  },
 };
 
 export default function ScriptsScreen() {
-  const [selectedScenario, setSelectedScenario] = useState<ScenarioType | null>(null);
-  const [scripts, setScripts] = useState<ScriptVariants | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [copiedVariant, setCopiedVariant] = useState<ScriptVariant | null>(null);
-  const [toneNotes, setToneNotes] = useState<string>('');
+  const [expandedScenario, setExpandedScenario] = useState<ScenarioType | null>(null);
+  const [scenarioData, setScenarioData] = useState<Record<string, ScenarioData>>({});
+  const [copiedVariant, setCopiedVariant] = useState<string | null>(null);
 
   const userProfile = useStore((state) => state.userProfile);
   const cacheScript = useStore((state) => state.cacheScript);
   const getCachedScript = useStore((state) => state.getCachedScript);
 
-  const selectScenario = async (scenario: ScenarioType) => {
+  const toggleScenario = useCallback(async (scenario: ScenarioType) => {
     await Haptics.selectionAsync();
 
-    if (selectedScenario === scenario) {
-      // Deselect
-      setSelectedScenario(null);
-      setScripts(null);
-      setToneNotes('');
+    // Animate the layout change
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+    if (expandedScenario === scenario) {
+      // Collapse
+      setExpandedScenario(null);
       return;
     }
 
-    setSelectedScenario(scenario);
-    setScripts(null);
-    setToneNotes('');
+    // Expand this scenario
+    setExpandedScenario(scenario);
 
-    // Check cache first
+    // Check if we already have data for this scenario
+    if (scenarioData[scenario]?.scripts) {
+      return;
+    }
+
+    // Check cache
     const cached = getCachedScript(scenario);
     if (cached) {
-      setScripts(cached.variants);
-      setToneNotes(cached.toneNotesRu);
+      setScenarioData(prev => ({
+        ...prev,
+        [scenario]: {
+          scripts: cached.variants,
+          toneNotes: cached.toneNotesRu,
+          loading: false,
+          error: false,
+        }
+      }));
       return;
     }
 
-    // Generate new scripts
-    await generateScripts(scenario);
-  };
+    // Fetch from API
+    await fetchScripts(scenario);
+  }, [expandedScenario, scenarioData, getCachedScript, userProfile]);
 
-  const generateScripts = async (scenario: ScenarioType) => {
-    setLoading(true);
-    setScripts(null); // Reset scripts before fetching
+  const fetchScripts = async (scenario: ScenarioType) => {
+    // Set loading state
+    setScenarioData(prev => ({
+      ...prev,
+      [scenario]: { scripts: null, toneNotes: '', loading: true, error: false }
+    }));
 
     try {
-      console.log('[Scripts] Generating for scenario:', scenario);
       const result = await api.generateScript({
         scenarioType: scenario,
         userProfile: userProfile || {},
       });
 
-      console.log('[Scripts] API result:', JSON.stringify(result, null, 2));
-
       if (result.success && result.data?.variants) {
-        setScripts(result.data.variants);
-        setToneNotes(result.data.toneNotesRu || '');
+        setScenarioData(prev => ({
+          ...prev,
+          [scenario]: {
+            scripts: result.data.variants,
+            toneNotes: result.data.toneNotesRu || '',
+            loading: false,
+            error: false,
+          }
+        }));
 
         // Cache the result
         cacheScript(scenario, {
@@ -94,29 +147,115 @@ export default function ScriptsScreen() {
           generatedAt: new Date().toISOString(),
         });
       } else {
-        console.error('[Scripts] API returned error:', result.success ? 'Missing variants' : result.error);
-        // Keep scripts null to show error state
+        setScenarioData(prev => ({
+          ...prev,
+          [scenario]: { scripts: null, toneNotes: '', loading: false, error: true }
+        }));
       }
     } catch (error) {
-      console.error('[Scripts] Exception:', error);
+      console.error('[Scripts] Error:', error);
+      setScenarioData(prev => ({
+        ...prev,
+        [scenario]: { scripts: null, toneNotes: '', loading: false, error: true }
+      }));
+    }
+  };
+
+  const copyToClipboard = async (scenario: ScenarioType, variant: ScriptVariant, text: string) => {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await Clipboard.setStringAsync(text);
+
+    const key = `${scenario}-${variant}`;
+    setCopiedVariant(key);
+    setTimeout(() => setCopiedVariant(null), 2000);
+  };
+
+  const renderScriptVariant = (scenario: ScenarioType, variant: ScriptVariant, text: string) => {
+    const config = VARIANT_CONFIG[variant];
+    const copyKey = `${scenario}-${variant}`;
+    const isCopied = copiedVariant === copyKey;
+
+    return (
+      <Pressable
+        key={variant}
+        style={styles.variantCard}
+        onPress={() => copyToClipboard(scenario, variant, text)}
+      >
+        <View style={styles.variantHeader}>
+          <View style={[styles.variantIcon, { backgroundColor: `${config.color}20` }]}>
+            <Ionicons name={config.icon} size={18} color={config.color} />
+          </View>
+          <View style={styles.variantTitleContainer}>
+            <Text style={[styles.variantLabel, { color: config.color }]}>{config.label}</Text>
+            <Text style={styles.variantDescription}>{config.description}</Text>
+          </View>
+          <View style={[styles.copyIndicator, isCopied && styles.copyIndicatorActive]}>
+            <Ionicons
+              name={isCopied ? 'checkmark' : 'copy-outline'}
+              size={16}
+              color={isCopied ? Colors.success : Colors.textMuted}
+            />
+          </View>
+        </View>
+        <Text style={styles.scriptText}>{text}</Text>
+        {isCopied && (
+          <Text style={styles.copiedFeedback}>Скопировано!</Text>
+        )}
+      </Pressable>
+    );
+  };
+
+  const renderExpandedContent = (scenario: ScenarioType) => {
+    const data = scenarioData[scenario];
+
+    if (!data || data.loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.loadingText}>Генерирую ответы...</Text>
+        </View>
+      );
     }
 
-    setLoading(false);
-  };
+    if (data.error || !data.scripts) {
+      return (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={24} color={Colors.error} />
+          <Text style={styles.errorText}>Не удалось загрузить</Text>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => fetchScripts(scenario)}
+          >
+            <Text style={styles.retryText}>Повторить</Text>
+          </Pressable>
+        </View>
+      );
+    }
 
-  const regenerateScripts = async () => {
-    if (!selectedScenario) return;
-    await generateScripts(selectedScenario);
-  };
+    return (
+      <View style={styles.expandedContent}>
+        {data.toneNotes && (
+          <View style={styles.toneNote}>
+            <Ionicons name="bulb-outline" size={16} color={Colors.trustGold} />
+            <Text style={styles.toneNoteText}>{data.toneNotes}</Text>
+          </View>
+        )}
 
-  const copyToClipboard = async (variant: ScriptVariant) => {
-    if (!scripts) return;
+        <View style={styles.variantsContainer}>
+          {(Object.keys(VARIANT_CONFIG) as ScriptVariant[]).map((variant) =>
+            renderScriptVariant(scenario, variant, data.scripts![variant])
+          )}
+        </View>
 
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await Clipboard.setStringAsync(scripts[variant]);
-
-    setCopiedVariant(variant);
-    setTimeout(() => setCopiedVariant(null), 2000);
+        <Pressable
+          style={styles.regenerateButton}
+          onPress={() => fetchScripts(scenario)}
+        >
+          <Ionicons name="refresh-outline" size={16} color={Colors.primary} />
+          <Text style={styles.regenerateText}>Сгенерировать новые</Text>
+        </Pressable>
+      </View>
+    );
   };
 
   return (
@@ -125,113 +264,65 @@ export default function ScriptsScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>Скрипты ответов</Text>
-      <Text style={styles.description}>
-        Выбери ситуацию — получишь 4 варианта ответа: от короткого до полного выхода.
-      </Text>
-
-      {/* Scenario list */}
-      <View style={styles.scenarioList}>
-        {(Object.keys(SCENARIO_TYPE_RU) as ScenarioType[]).map((scenario) => (
-          <Pressable
-            key={scenario}
-            style={[
-              styles.scenarioItem,
-              selectedScenario === scenario && styles.scenarioItemSelected,
-            ]}
-            onPress={() => selectScenario(scenario)}
-          >
-            <Text
-              style={[
-                styles.scenarioText,
-                selectedScenario === scenario && styles.scenarioTextSelected,
-              ]}
-            >
-              {SCENARIO_TYPE_RU[scenario]}
-            </Text>
-            <Ionicons
-              name={selectedScenario === scenario ? 'chevron-up' : 'chevron-forward'}
-              size={20}
-              color={selectedScenario === scenario ? Colors.primary : Colors.textSecondary}
-            />
-          </Pressable>
-        ))}
+      <View style={styles.header}>
+        <Text style={styles.title}>Скрипты ответов</Text>
+        <Text style={styles.subtitle}>
+          Готовые фразы для сложных разговоров
+        </Text>
       </View>
 
-      {/* Scripts display */}
-      {selectedScenario && (
-        <View style={styles.scriptsSection}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Генерирую скрипты...</Text>
-            </View>
-          ) : scripts ? (
-            <>
-              {/* Tone notes */}
-              {toneNotes && (
-                <Card style={styles.toneCard}>
-                  <View style={styles.toneHeader}>
-                    <Ionicons name="information-circle" size={20} color={Colors.info} />
-                    <Text style={styles.toneLabel}>Подача</Text>
-                  </View>
-                  <Text style={styles.toneText}>{toneNotes}</Text>
-                </Card>
-              )}
+      <View style={styles.scenarioList}>
+        {(Object.keys(SCENARIO_TYPE_RU) as ScenarioType[]).map((scenario) => {
+          const isExpanded = expandedScenario === scenario;
+          const hasData = scenarioData[scenario]?.scripts;
 
-              {/* Script variants */}
-              {(Object.keys(VARIANT_LABELS) as ScriptVariant[]).map((variant) => {
-                const variantInfo = VARIANT_LABELS[variant];
-                const isCopied = copiedVariant === variant;
-
-                return (
-                  <Card key={variant} style={styles.scriptCard}>
-                    <View style={styles.scriptHeader}>
-                      <View style={[styles.variantBadge, { backgroundColor: variantInfo.color }]}>
-                        <Ionicons name={variantInfo.icon} size={14} color={Colors.background} />
-                        <Text style={styles.variantBadgeText}>{variantInfo.label}</Text>
-                      </View>
-                      <Pressable
-                        style={[styles.copyButton, isCopied && styles.copyButtonCopied]}
-                        onPress={() => copyToClipboard(variant)}
-                      >
-                        <Ionicons
-                          name={isCopied ? 'checkmark' : 'copy'}
-                          size={16}
-                          color={isCopied ? Colors.success : Colors.textSecondary}
-                        />
-                        <Text style={[styles.copyText, isCopied && styles.copyTextCopied]}>
-                          {isCopied ? 'Скопировано' : 'Копировать'}
-                        </Text>
-                      </Pressable>
+          return (
+            <View key={scenario} style={styles.accordionItem}>
+              {/* Accordion Header */}
+              <Pressable
+                style={[
+                  styles.scenarioHeader,
+                  isExpanded && styles.scenarioHeaderExpanded,
+                ]}
+                onPress={() => toggleScenario(scenario)}
+              >
+                <View style={styles.scenarioTitleRow}>
+                  <Text style={[
+                    styles.scenarioTitle,
+                    isExpanded && styles.scenarioTitleExpanded,
+                  ]}>
+                    {SCENARIO_TYPE_RU[scenario]}
+                  </Text>
+                  {hasData && !isExpanded && (
+                    <View style={styles.cachedBadge}>
+                      <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
                     </View>
-                    <Text style={styles.scriptText}>{scripts[variant]}</Text>
-                  </Card>
-                );
-              })}
+                  )}
+                </View>
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={isExpanded ? Colors.primary : Colors.textMuted}
+                />
+              </Pressable>
 
-              {/* Regenerate button */}
-              <Button
-                title="Сгенерировать новые"
-                onPress={regenerateScripts}
-                variant="secondary"
-                fullWidth
-              />
-            </>
-          ) : (
-            <Card style={styles.errorCard}>
-              <Ionicons name="warning" size={32} color={Colors.warning} />
-              <Text style={styles.errorText}>Не удалось загрузить скрипты</Text>
-              <Button
-                title="Попробовать снова"
-                onPress={regenerateScripts}
-                variant="secondary"
-                size="small"
-              />
-            </Card>
-          )}
-        </View>
-      )}
+              {/* Accordion Content */}
+              {isExpanded && (
+                <View style={styles.accordionContent}>
+                  {renderExpandedContent(scenario)}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={styles.footer}>
+        <Ionicons name="information-circle-outline" size={16} color={Colors.textMuted} />
+        <Text style={styles.footerText}>
+          Нажми на вариант, чтобы скопировать
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -242,131 +333,193 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    padding: Spacing.lg,
     paddingBottom: Spacing.xxl,
+  },
+  header: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   title: {
     fontSize: FontSizes.xxl,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
-  description: {
+  subtitle: {
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
   },
   scenarioList: {
-    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
-  scenarioItem: {
+  accordionItem: {
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.backgroundCard,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  scenarioHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: Spacing.lg,
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
-  scenarioItemSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: `${Colors.primary}10`,
+  scenarioHeaderExpanded: {
+    backgroundColor: `${Colors.primary}08`,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  scenarioText: {
-    fontSize: FontSizes.md,
-    color: Colors.text,
+  scenarioTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  scenarioTextSelected: {
+  scenarioTitle: {
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  scenarioTitleExpanded: {
     color: Colors.primary,
     fontWeight: '600',
   },
-  scriptsSection: {
-    marginTop: Spacing.lg,
+  cachedBadge: {
+    marginLeft: Spacing.sm,
+  },
+  accordionContent: {
+    backgroundColor: Colors.background,
+  },
+  expandedContent: {
+    padding: Spacing.md,
   },
   loadingContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xxl,
+    justifyContent: 'center',
+    padding: Spacing.xl,
   },
   loadingText: {
-    fontSize: FontSizes.md,
-    color: Colors.textSecondary,
-    marginTop: Spacing.md,
-  },
-  toneCard: {
-    marginBottom: Spacing.lg,
-    backgroundColor: `${Colors.info}10`,
-    borderColor: Colors.info,
-  },
-  toneHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  toneLabel: {
     fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.info,
-    marginLeft: Spacing.xs,
-  },
-  toneText: {
-    fontSize: FontSizes.sm,
-    color: Colors.text,
-    fontStyle: 'italic',
-  },
-  scriptCard: {
-    marginBottom: Spacing.md,
-  },
-  scriptHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  variantBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-  },
-  variantBadgeText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    color: Colors.background,
-    marginLeft: Spacing.xs,
-  },
-  copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.xs,
-  },
-  copyButtonCopied: {
-    opacity: 1,
-  },
-  copyText: {
-    fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    marginLeft: Spacing.xs,
+    marginLeft: Spacing.sm,
   },
-  copyTextCopied: {
-    color: Colors.success,
-  },
-  scriptText: {
-    fontSize: FontSizes.md,
-    color: Colors.text,
-    lineHeight: 24,
-  },
-  errorCard: {
+  errorContainer: {
     alignItems: 'center',
     padding: Spacing.xl,
   },
   errorText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  retryButton: {
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: `${Colors.primary}15`,
+    borderRadius: BorderRadius.md,
+  },
+  retryText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  toneNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: `${Colors.trustGold}10`,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  toneNoteText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    marginLeft: Spacing.sm,
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  variantsContainer: {
+    gap: Spacing.sm,
+  },
+  variantCard: {
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  variantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  variantIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  variantTitleContainer: {
+    flex: 1,
+    marginLeft: Spacing.sm,
+  },
+  variantLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  variantDescription: {
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+  },
+  copyIndicator: {
+    padding: Spacing.xs,
+  },
+  copyIndicatorActive: {
+    backgroundColor: `${Colors.success}15`,
+    borderRadius: BorderRadius.sm,
+  },
+  scriptText: {
     fontSize: FontSizes.md,
     color: Colors.text,
+    lineHeight: 22,
+  },
+  copiedFeedback: {
+    fontSize: FontSizes.xs,
+    color: Colors.success,
+    fontWeight: '600',
+    marginTop: Spacing.sm,
+    textAlign: 'right',
+  },
+  regenerateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
     marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    backgroundColor: `${Colors.primary}10`,
+  },
+  regenerateText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginLeft: Spacing.xs,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    marginTop: Spacing.md,
+  },
+  footerText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginLeft: Spacing.xs,
   },
 });
