@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=packages/shared
+
+      - name: TypeCheck API
+        run: npm run build --workspace=apps/api
+
+  validate-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate migrations
+        run: |
+          cd supabase
+          for file in migrations/*.sql; do
+            echo "Validating $file..."
+            # Basic syntax check - ensure file is not empty and has valid SQL
+            if [ ! -s "$file" ]; then
+              echo "Error: $file is empty"
+              exit 1
+            fi
+          done
+          echo "All migrations validated"

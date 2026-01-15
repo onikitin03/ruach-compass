@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Card, Button, TrustAnchor } from '@/components';
 import { useStore } from '@/store/useStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 import {
   USER_VALUE_RU,
@@ -27,6 +28,7 @@ import {
 import type { UserValue, TriggerType, TonePreference } from '@ruach/shared';
 
 export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
   const userProfile = useStore((state) => state.userProfile);
   const completedQuestsCount = useStore((state) => state.completedQuestsCount);
   const setUserProfile = useStore((state) => state.setUserProfile);
@@ -67,6 +69,23 @@ export default function ProfileScreen() {
           onPress: () => {
             resetAll();
             router.replace('/onboarding');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Выйти из аккаунта?',
+      'Локальные данные останутся на устройстве.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Выйти',
+          onPress: async () => {
+            await signOut();
+            router.replace('/auth');
           },
         },
       ]
@@ -256,6 +275,18 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      {/* Account */}
+      <Card style={styles.settingsCard}>
+        <Text style={styles.sectionTitle}>Аккаунт</Text>
+        <Text style={styles.accountEmail}>{user?.email || 'Не авторизован'}</Text>
+        <Button
+          title="Выйти из аккаунта"
+          onPress={handleSignOut}
+          variant="ghost"
+          fullWidth
+        />
+      </Card>
+
       {/* Danger zone */}
       <Card style={styles.dangerCard}>
         <Text style={styles.dangerTitle}>Сброс</Text>
@@ -412,6 +443,11 @@ const styles = StyleSheet.create({
   toneOptionTextSelected: {
     color: Colors.primary,
     fontWeight: '600',
+  },
+  accountEmail: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
   },
   dangerCard: {
     marginBottom: Spacing.lg,

@@ -1,8 +1,8 @@
 // ==========================================
-// API Client Service
+// API Client Service - Supabase Edge Functions
 // ==========================================
 
-import * as SecureStore from 'expo-secure-store';
+import { supabase, EDGE_FUNCTIONS } from '@/lib/supabase';
 import {
   QuestGenerationRequest,
   QuestGenerationResponse,
@@ -13,56 +13,30 @@ import {
   FALLBACK_RESET_PROTOCOLS
 } from '@ruach/shared';
 
-// API Configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
-
-// Device ID for rate limiting
-let deviceId: string | null = null;
-
-const getDeviceId = async (): Promise<string> => {
-  if (deviceId) return deviceId;
-
-  try {
-    const stored = await SecureStore.getItemAsync('deviceId');
-    if (stored) {
-      deviceId = stored;
-      return stored;
-    }
-  } catch (e) {
-    // SecureStore might not be available
-  }
-
-  // Generate new device ID
-  deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-  try {
-    await SecureStore.setItemAsync('deviceId', deviceId);
-  } catch (e) {
-    // Ignore storage errors
-  }
-
-  return deviceId;
-};
-
-// Base fetch with headers
+// Base fetch with Supabase auth
 const apiFetch = async <T>(
-  endpoint: string,
-  options: RequestInit = {}
+  url: string,
+  body: object
 ): Promise<{ success: true; data: T } | { success: false; error: string }> => {
   try {
-    const id = await getDeviceId();
-    const url = `${API_BASE_URL}${endpoint}`;
+    const { data: { session } } = await supabase.auth.getSession();
 
-    console.log(`[API] ${options.method || 'GET'} ${url}`);
+    if (!session) {
+      return {
+        success: false,
+        error: 'Необходима авторизация'
+      };
+    }
+
+    console.log(`[API] POST ${url}`);
 
     const response = await fetch(url, {
-      ...options,
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Device-Id': id,
-        'X-Client-Version': '1.0.0',
-        ...options.headers,
+        'Authorization': `Bearer ${session.access_token}`,
       },
+      body: JSON.stringify(body),
     });
 
     const data = await response.json();
@@ -96,20 +70,14 @@ export const api = {
   generateQuests: async (
     request: QuestGenerationRequest
   ): Promise<{ success: true; data: QuestGenerationResponse } | { success: false; error: string }> => {
-    return apiFetch<QuestGenerationResponse>('/ai/quests', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
+    return apiFetch<QuestGenerationResponse>(EDGE_FUNCTIONS.generateQuests, request);
   },
 
   // Generate conversation scripts
   generateScript: async (
     request: ScriptGenerationRequest
   ): Promise<{ success: true; data: ScriptGenerationResponse } | { success: false; error: string }> => {
-    return apiFetch<ScriptGenerationResponse>('/ai/script', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
+    return apiFetch<ScriptGenerationResponse>(EDGE_FUNCTIONS.generateScripts, request);
   },
 
   // Generate reset protocol
@@ -117,17 +85,17 @@ export const api = {
     trigger: TriggerType,
     contextSummary?: string
   ): Promise<{ success: true; data: ResetProtocolResponse } | { success: false; error: string }> => {
-    return apiFetch<ResetProtocolResponse>('/ai/reset', {
-      method: 'POST',
-      body: JSON.stringify({ trigger, contextSummary }),
+    return apiFetch<ResetProtocolResponse>(EDGE_FUNCTIONS.generateReset, {
+      trigger,
+      contextSummary,
     });
   },
 
-  // Health check
+  // Health check - check if user is authenticated
   healthCheck: async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
-      return response.ok;
+      const { data: { session } } = await supabase.auth.getSession();
+      return !!session;
     } catch {
       return false;
     }

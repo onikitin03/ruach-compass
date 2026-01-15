@@ -1,0 +1,64 @@
+name: Deploy to Supabase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref $SUPABASE_PROJECT_ID
+
+      - name: Run database migrations
+        run: supabase db push
+
+      - name: Deploy Edge Functions
+        run: |
+          supabase functions deploy generate-quests --no-verify-jwt=false
+          supabase functions deploy generate-scripts --no-verify-jwt=false
+          supabase functions deploy generate-reset --no-verify-jwt=false
+
+  generate-types:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Generate TypeScript types
+        run: |
+          mkdir -p packages/shared/src/generated
+          supabase gen types typescript --linked > packages/shared/src/generated/database.types.ts
+
+      - name: Commit and push types
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update database types [skip ci]"
+          file_pattern: "packages/shared/src/generated/database.types.ts"

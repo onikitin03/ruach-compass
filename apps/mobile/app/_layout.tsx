@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/theme';
 
 // Prevent auto-hiding splash screen
@@ -18,7 +19,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -37,6 +38,10 @@ export default function RootLayout() {
       >
         <Stack.Screen
           name="index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="auth"
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -63,6 +68,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }
