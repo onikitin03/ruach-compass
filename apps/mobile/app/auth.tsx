@@ -1,130 +1,74 @@
 // ==========================================
-// Auth Screen - Login / Sign Up
+// Auth Screen - Google Sign In
 // ==========================================
 
 import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 
 export default function AuthScreen() {
-  const { signInWithEmail, signUpWithEmail } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { signInWithGoogle, isLoading } = useAuth();
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!email || !password) {
-      Alert.alert('Ошибка', 'Введите email и пароль');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Ошибка', 'Пароль должен быть не менее 6 символов');
-      return;
-    }
-
-    setIsLoading(true);
-
+  const handleGoogleSignIn = async () => {
+    setIsSigningIn(true);
     try {
-      const { error } = isSignUp
-        ? await signUpWithEmail(email, password)
-        : await signInWithEmail(email, password);
-
-      if (error) {
-        const message = error.message.includes('Invalid')
-          ? 'Неверный email или пароль'
-          : error.message.includes('already registered')
-          ? 'Этот email уже зарегистрирован'
-          : error.message;
-        Alert.alert('Ошибка', message);
-      } else if (isSignUp) {
-        Alert.alert(
-          'Успех',
-          'Проверь почту для подтверждения аккаунта',
-          [{ text: 'OK', onPress: () => setIsSignUp(false) }]
-        );
-      }
-      // If sign in successful, auth state change will trigger navigation
-    } catch (e) {
-      Alert.alert('Ошибка', 'Что-то пошло не так');
+      await signInWithGoogle();
+    } catch (error: any) {
+      Alert.alert(
+        'Ошибка входа',
+        error.message || 'Не удалось войти через Google'
+      );
     } finally {
-      setIsLoading(false);
+      setIsSigningIn(false);
     }
   };
 
+  const loading = isLoading || isSigningIn;
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Ruach Compass</Text>
-        <Text style={styles.subtitle}>
-          {isSignUp ? 'Создать аккаунт' : 'Войти'}
-        </Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Ruach Compass</Text>
+          <Text style={styles.subtitle}>
+            Твой проводник к внутреннему спокойствию
+          </Text>
+        </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={Colors.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Пароль"
-            placeholderTextColor={Colors.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoComplete={isSignUp ? 'new-password' : 'current-password'}
-          />
-
+        <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={isLoading}
+            style={[styles.googleButton, loading && styles.buttonDisabled]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
           >
-            {isLoading ? (
-              <ActivityIndicator color={Colors.background} />
+            {loading ? (
+              <ActivityIndicator color={Colors.text} />
             ) : (
-              <Text style={styles.buttonText}>
-                {isSignUp ? 'Зарегистрироваться' : 'Войти'}
-              </Text>
+              <>
+                <Ionicons name="logo-google" size={24} color={Colors.text} />
+                <Text style={styles.googleButtonText}>
+                  Войти через Google
+                </Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.toggleButton}
-          onPress={() => setIsSignUp(!isSignUp)}
-        >
-          <Text style={styles.toggleText}>
-            {isSignUp
-              ? 'Уже есть аккаунт? Войти'
-              : 'Нет аккаунта? Зарегистрироваться'}
-          </Text>
-        </TouchableOpacity>
+        <Text style={styles.disclaimer}>
+          Продолжая, ты соглашаешься с условиями использования
+        </Text>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -138,53 +82,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
   },
+  header: {
+    alignItems: 'center',
+    marginBottom: Spacing.xxl,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: Colors.text,
     textAlign: 'center',
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.md,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
   },
-  form: {
+  buttonContainer: {
     gap: Spacing.md,
   },
-  input: {
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.backgroundCard,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    fontSize: FontSizes.md,
-    color: Colors.text,
+    paddingHorizontal: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-  },
-  button: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    marginTop: Spacing.sm,
+    gap: Spacing.md,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonText: {
-    color: Colors.background,
+  googleButtonText: {
+    color: Colors.text,
     fontSize: FontSizes.md,
     fontWeight: '600',
   },
-  toggleButton: {
-    marginTop: Spacing.xl,
-    alignItems: 'center',
-  },
-  toggleText: {
-    color: Colors.primary,
-    fontSize: FontSizes.sm,
+  disclaimer: {
+    marginTop: Spacing.xxl,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
 });
