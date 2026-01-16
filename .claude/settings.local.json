@@ -29,7 +29,8 @@
       "Bash(xargs kill:*)",
       "Bash(wc:*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__supabase__search_docs"
     ]
   },
   "enableAllProjectMcpServers": true,
