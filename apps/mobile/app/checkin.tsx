@@ -17,7 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Button, Card, LevelSlider } from '@/components';
 import { useStore } from '@/store/useStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { api, fallback } from '@/services/api';
+import { saveDailyState, saveQuests } from '@/services/supabase-data';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 import { FOCUS_AREA_RU, generateId, getISODate, getISODateTime } from '@ruach/shared';
 import type { FocusArea, Quest, DailyState } from '@ruach/shared';
@@ -31,6 +33,7 @@ export default function CheckInScreen() {
   const [sleepHours, setSleepHours] = useState(7);
   const [focus, setFocus] = useState<FocusArea>('work');
 
+  const { user } = useAuth();
   const userProfile = useStore((state) => state.userProfile);
   const setTodayState = useStore((state) => state.setTodayState);
   const setTodayQuests = useStore((state) => state.setTodayQuests);
@@ -90,8 +93,20 @@ export default function CheckInScreen() {
       createdAt: getISODateTime(),
     };
 
-    // Save state
+    // Save state locally
     setTodayState(dailyState);
+
+    // Save daily state to Supabase
+    let dailyStateId: string | null = null;
+    if (user) {
+      dailyStateId = await saveDailyState(user.id, {
+        date: dailyState.date,
+        energy: dailyState.energy,
+        stress: dailyState.stress,
+        sleepHours: dailyState.sleepHours,
+        focus: dailyState.focus,
+      });
+    }
 
     try {
       // Generate quests
@@ -101,7 +116,7 @@ export default function CheckInScreen() {
       });
 
       if (result.success) {
-        const quests: Quest[] = result.data.quests.map((q) => ({
+        let quests: Quest[] = result.data.quests.map((q) => ({
           id: generateId(),
           date: getISODate(),
           type: q.type,
@@ -114,12 +129,24 @@ export default function CheckInScreen() {
           createdAt: getISODateTime(),
         }));
 
+        // Save quests to Supabase and get IDs
+        if (user) {
+          const savedQuests = await saveQuests(user.id, dailyStateId, quests);
+          if (savedQuests.length > 0) {
+            // Use Supabase IDs for consistency
+            quests = savedQuests.map((q) => ({
+              ...q,
+              createdAt: getISODateTime(),
+            }));
+          }
+        }
+
         setTodayQuests(quests);
         updateRuachState(result.data.stateAssessment.ruachState);
       } else {
         // Use fallback
         const fallbackData = fallback.getDefaultQuests(energy, stress);
-        const quests: Quest[] = fallbackData.quests.map((q) => ({
+        let quests: Quest[] = fallbackData.quests.map((q) => ({
           id: generateId(),
           date: getISODate(),
           type: q.type,
@@ -131,6 +158,17 @@ export default function CheckInScreen() {
           done: false,
           createdAt: getISODateTime(),
         }));
+
+        // Save fallback quests to Supabase and get IDs
+        if (user) {
+          const savedQuests = await saveQuests(user.id, dailyStateId, quests);
+          if (savedQuests.length > 0) {
+            quests = savedQuests.map((q) => ({
+              ...q,
+              createdAt: getISODateTime(),
+            }));
+          }
+        }
 
         setTodayQuests(quests);
         updateRuachState(fallbackData.stateAssessment.ruachState);
@@ -139,7 +177,7 @@ export default function CheckInScreen() {
       console.error('Error generating quests:', error);
       // Use fallback on error
       const fallbackData = fallback.getDefaultQuests(energy, stress);
-      const quests: Quest[] = fallbackData.quests.map((q) => ({
+      let quests: Quest[] = fallbackData.quests.map((q) => ({
         id: generateId(),
         date: getISODate(),
         type: q.type,
@@ -151,6 +189,17 @@ export default function CheckInScreen() {
         done: false,
         createdAt: getISODateTime(),
       }));
+
+      // Save fallback quests to Supabase and get IDs
+      if (user) {
+        const savedQuests = await saveQuests(user.id, dailyStateId, quests);
+        if (savedQuests.length > 0) {
+          quests = savedQuests.map((q) => ({
+            ...q,
+            createdAt: getISODateTime(),
+          }));
+        }
+      }
 
       setTodayQuests(quests);
       updateRuachState(fallbackData.stateAssessment.ruachState);

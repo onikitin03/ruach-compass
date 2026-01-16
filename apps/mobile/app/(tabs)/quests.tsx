@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { QuestCard, Card, Button } from '@/components';
 import { useStore } from '@/store/useStore';
+import { completeQuest as completeQuestInDB } from '@/services/supabase-data';
 import { Colors, Spacing, FontSizes } from '@/constants/theme';
 import { getISODate } from '@ruach/shared';
 
@@ -36,8 +37,12 @@ export default function QuestsScreen() {
     setTimeout(() => setRefreshing(false), 500);
   };
 
-  const handleCompleteQuest = (questId: string) => {
+  const handleCompleteQuest = async (questId: string) => {
+    // Update local state
     completeQuest(questId);
+
+    // Sync to Supabase
+    await completeQuestInDB(questId);
   };
 
   const goToCheckIn = () => {

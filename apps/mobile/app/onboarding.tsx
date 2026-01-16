@@ -17,6 +17,8 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, TrustAnchor } from '@/components';
 import { useStore } from '@/store/useStore';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveUserProfile } from '@/services/supabase-data';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 import {
   USER_VALUE_RU,
@@ -38,6 +40,7 @@ export default function OnboardingScreen() {
   const [selectedTone, setSelectedTone] = useState<TonePreference>('warm');
   const [trustAnchor, setTrustAnchor] = useState('ДОВЕРИЕ');
 
+  const { user } = useAuth();
   const setUserProfile = useStore((state) => state.setUserProfile);
   const completeOnboarding = useStore((state) => state.completeOnboarding);
 
@@ -86,8 +89,13 @@ export default function OnboardingScreen() {
   const handleComplete = async () => {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    if (!user) {
+      console.error('[ONBOARDING] No user found');
+      return;
+    }
+
     const profile: UserProfile = {
-      id: generateId(),
+      id: user.id, // Use Supabase user ID
       language: 'ru',
       values: selectedValues.length > 0 ? selectedValues : ['dignity', 'actions'],
       triggers: selectedTriggers,
@@ -98,6 +106,13 @@ export default function OnboardingScreen() {
       updatedAt: getISODateTime(),
     };
 
+    // Save to Supabase
+    const saved = await saveUserProfile(user.id, profile);
+    if (!saved) {
+      console.error('[ONBOARDING] Failed to save profile to Supabase');
+    }
+
+    // Save locally
     setUserProfile(profile);
     completeOnboarding();
     router.replace('/(tabs)');

@@ -2,7 +2,7 @@
 // Auth Screen - Google Sign In
 // ==========================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,21 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 
 export default function AuthScreen() {
-  const { signInWithGoogle, isLoading } = useAuth();
+  const { user, signInWithGoogle, isLoading } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Redirect when user is logged in
+  useEffect(() => {
+    if (user) {
+      router.replace('/(tabs)');
+    }
+  }, [user]);
 
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);

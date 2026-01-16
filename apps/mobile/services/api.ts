@@ -19,9 +19,17 @@ const apiFetch = async <T>(
   body: object
 ): Promise<{ success: true; data: T } | { success: false; error: string }> => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Try to refresh the session first
+    const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
 
-    if (!session) {
+    if (refreshError) {
+      console.log('[API] Refresh error, trying getSession:', refreshError.message);
+    }
+
+    // Get current session (either refreshed or existing)
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+    if (!currentSession) {
       return {
         success: false,
         error: 'Необходима авторизация'
@@ -29,12 +37,13 @@ const apiFetch = async <T>(
     }
 
     console.log(`[API] POST ${url}`);
+    console.log(`[API] Token expires at:`, new Date((currentSession.expires_at || 0) * 1000).toISOString());
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${currentSession.access_token}`,
       },
       body: JSON.stringify(body),
     });

@@ -1,12 +1,33 @@
 // ==========================================
-// Tabs Layout
+// Tabs Layout - Protected Routes
 // ==========================================
 
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/theme';
 
 export default function TabsLayout() {
+  const { user, isLoading } = useAuth();
+
+  console.log('[TABS] isLoading:', isLoading);
+  console.log('[TABS] user:', user?.email ?? 'NO USER');
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  // Not authenticated - redirect to auth
+  if (!user) {
+    return <Redirect href="/auth" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -53,6 +74,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="analytics"
+        options={{
+          title: 'Аналитика',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="stats-chart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="scripts"
         options={{
           title: 'Скрипты',
@@ -73,3 +103,12 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+});

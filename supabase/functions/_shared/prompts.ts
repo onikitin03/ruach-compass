@@ -100,12 +100,12 @@ SCRIPT TYPES:
 4. exitRu: De-escalation + exit plan — how to disengage safely
 
 SCENARIOS (translate understanding, not literally):
-- provocation: she's poking/testing for reaction
-- accusation: she blames you for something
-- coldness: she goes distant/cold
+- provocation: the other person is poking/testing for reaction
+- accusation: they blame you for something
+- coldness: they go distant/cold
 - drama: emotional escalation
 - comparison: comparing you unfavorably to others
-- silence: she ignores/stonewalls
+- silence: they ignore/stonewall
 - blame: "you're controlling"
 - testing: testing your reaction/commitment
 - manipulation: guilt-tripping
@@ -122,7 +122,7 @@ NEVER:
 - Explain yourself excessively
 - Beg or plead
 - Threaten or ultimatum (unless true emergency)
-- Match her energy (stay grounded)
+- Match their energy (stay grounded)
 
 OUTPUT FORMAT (strict JSON):
 {

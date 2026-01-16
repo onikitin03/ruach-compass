@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { Card, Button, TrustAnchor } from '@/components';
 import { useStore } from '@/store/useStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { saveUserProfile, resetTodayData, deleteAllUserData } from '@/services/supabase-data';
 import { Colors, Spacing, FontSizes, BorderRadius } from '@/constants/theme';
 import {
   USER_VALUE_RU,
@@ -32,7 +33,6 @@ export default function ProfileScreen() {
   const userProfile = useStore((state) => state.userProfile);
   const completedQuestsCount = useStore((state) => state.completedQuestsCount);
   const setUserProfile = useStore((state) => state.setUserProfile);
-  const resetAll = useStore((state) => state.resetAll);
 
   const [editingAnchor, setEditingAnchor] = useState(false);
   const [newAnchor, setNewAnchor] = useState(userProfile?.trustAnchorWord || 'ДОВЕРИЕ');
@@ -48,31 +48,19 @@ export default function ProfileScreen() {
   const handleSaveAnchor = async () => {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    setUserProfile({
+    const updatedProfile = {
       ...userProfile,
       trustAnchorWord: newAnchor || 'ДОВЕРИЕ',
       updatedAt: getISODateTime(),
-    });
+    };
 
+    setUserProfile(updatedProfile);
     setEditingAnchor(false);
-  };
 
-  const handleResetApp = () => {
-    Alert.alert(
-      'Сбросить приложение?',
-      'Это удалит все данные и вернёт тебя на экран онбординга.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Сбросить',
-          style: 'destructive',
-          onPress: () => {
-            resetAll();
-            router.replace('/onboarding');
-          },
-        },
-      ]
-    );
+    // Sync to Supabase
+    if (user) {
+      saveUserProfile(user.id, updatedProfile);
+    }
   };
 
   const handleSignOut = () => {
@@ -92,6 +80,59 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleResetToday = () => {
+    Alert.alert(
+      'Сбросить сегодняшние данные?',
+      'Чек-ин и квесты за сегодня будут удалены. Ты сможешь пройти чек-ин заново.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Сбросить',
+          style: 'destructive',
+          onPress: async () => {
+            if (!user) return;
+            const success = await resetTodayData(user.id);
+            if (success) {
+              // Clear local state
+              useStore.getState().setTodayQuests([]);
+              // Force todayState to null by using setState directly
+              useStore.setState({ todayState: null });
+              Alert.alert('Готово', 'Данные за сегодня удалены. Пройди чек-ин заново.');
+            } else {
+              Alert.alert('Ошибка', 'Не удалось сбросить данные');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Удалить аккаунт?',
+      'Все твои данные будут безвозвратно удалены: профиль, квесты, статистика.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            if (!user) return;
+            const success = await deleteAllUserData(user.id);
+            if (success) {
+              // Clear local state and sign out
+              useStore.getState().resetAll();
+              await signOut();
+              router.replace('/auth');
+            } else {
+              Alert.alert('Ошибка', 'Не удалось удалить аккаунт');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const toggleValue = async (value: UserValue) => {
     await Haptics.selectionAsync();
 
@@ -103,11 +144,18 @@ export default function ProfileScreen() {
     // Ensure at least one value is selected
     if (newValues.length === 0) return;
 
-    setUserProfile({
+    const updatedProfile = {
       ...userProfile,
       values: newValues,
       updatedAt: getISODateTime(),
-    });
+    };
+
+    setUserProfile(updatedProfile);
+
+    // Sync to Supabase
+    if (user) {
+      saveUserProfile(user.id, updatedProfile);
+    }
   };
 
   const toggleTrigger = async (trigger: TriggerType) => {
@@ -118,21 +166,35 @@ export default function ProfileScreen() {
       ? currentTriggers.filter((t) => t !== trigger)
       : [...currentTriggers, trigger];
 
-    setUserProfile({
+    const updatedProfile = {
       ...userProfile,
       triggers: newTriggers,
       updatedAt: getISODateTime(),
-    });
+    };
+
+    setUserProfile(updatedProfile);
+
+    // Sync to Supabase
+    if (user) {
+      saveUserProfile(user.id, updatedProfile);
+    }
   };
 
   const selectTone = async (tone: TonePreference) => {
     await Haptics.selectionAsync();
 
-    setUserProfile({
+    const updatedProfile = {
       ...userProfile,
       preferredTone: tone,
       updatedAt: getISODateTime(),
-    });
+    };
+
+    setUserProfile(updatedProfile);
+
+    // Sync to Supabase
+    if (user) {
+      saveUserProfile(user.id, updatedProfile);
+    }
   };
 
   return (
@@ -282,20 +344,24 @@ export default function ProfileScreen() {
         <Button
           title="Выйти из аккаунта"
           onPress={handleSignOut}
-          variant="ghost"
+          variant="secondary"
           fullWidth
         />
       </Card>
 
-      {/* Danger zone */}
-      <Card style={styles.dangerCard}>
-        <Text style={styles.dangerTitle}>Сброс</Text>
-        <Text style={styles.dangerDescription}>
-          Удалить все данные и начать заново
-        </Text>
+      {/* Debug / Reset */}
+      <Card style={styles.settingsCard}>
+        <Text style={styles.sectionTitle}>Данные</Text>
         <Button
-          title="Сбросить приложение"
-          onPress={handleResetApp}
+          title="Сбросить сегодня"
+          onPress={handleResetToday}
+          variant="ghost"
+          fullWidth
+          style={styles.resetButton}
+        />
+        <Button
+          title="Удалить аккаунт"
+          onPress={handleDeleteAccount}
           variant="danger"
           fullWidth
         />
@@ -449,26 +515,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
-  dangerCard: {
-    marginBottom: Spacing.lg,
-    backgroundColor: `${Colors.error}10`,
-    borderColor: Colors.error,
-  },
-  dangerTitle: {
-    fontSize: FontSizes.lg,
-    fontWeight: '600',
-    color: Colors.error,
-    marginBottom: Spacing.xs,
-  },
-  dangerDescription: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
-  },
   version: {
     fontSize: FontSizes.xs,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: Spacing.lg,
+  },
+  resetButton: {
+    marginBottom: Spacing.sm,
   },
 });

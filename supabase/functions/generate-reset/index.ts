@@ -16,26 +16,32 @@ Deno.serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    // Create Supabase client with user's auth
+    // Extract JWT token from Authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header", errorRu: "Необходима авторизация" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const token = authHeader.replace("Bearer ", "");
+
+    // Create Supabase client
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
+      Deno.env.get("SUPABASE_ANON_KEY")!
     );
 
-    // Get authenticated user
+    // Get authenticated user by passing token directly
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
+      console.error("Auth error:", authError);
       return new Response(
-        JSON.stringify({ error: "Unauthorized", errorRu: "Необходима авторизация" }),
+        JSON.stringify({ error: "Unauthorized", errorRu: "Необходима авторизация", details: authError?.message }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
