@@ -66,12 +66,14 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert(
       'Выйти из аккаунта?',
-      'Локальные данные останутся на устройстве.',
+      'Данные будут очищены с устройства.',
       [
         { text: 'Отмена', style: 'cancel' },
         {
           text: 'Выйти',
           onPress: async () => {
+            // Clear local state before signing out to prevent data leak to next user
+            useStore.getState().resetAll();
             await signOut();
             router.replace('/auth');
           },

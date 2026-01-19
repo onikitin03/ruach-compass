@@ -7,6 +7,7 @@ import { Session, User } from '@supabase/supabase-js';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
+import { useStore } from '@/store/useStore';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,10 +29,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const checkAndResetForNewUser = useStore.getState().checkAndResetForNewUser;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('[AUTH] Session:', session?.user?.email ?? 'NO USER');
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Check if this is a different user and reset data if needed
+      if (session?.user?.id) {
+        checkAndResetForNewUser(session.user.id);
+      }
+
       setIsLoading(false);
     });
 
@@ -39,6 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[AUTH] State changed:', session?.user?.email ?? 'NO USER');
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Check if this is a different user and reset data if needed
+      if (session?.user?.id) {
+        checkAndResetForNewUser(session.user.id);
+      }
+
       setIsLoading(false);
     });
 
@@ -131,6 +146,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear Zustand store data (in case not already cleared)
+    useStore.getState().resetAll();
     await supabase.auth.signOut();
   };
 

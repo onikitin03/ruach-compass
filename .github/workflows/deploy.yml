@@ -29,9 +29,9 @@ jobs:
 
       - name: Deploy Edge Functions
         run: |
-          supabase functions deploy generate-quests --no-verify-jwt=false
-          supabase functions deploy generate-scripts --no-verify-jwt=false
-          supabase functions deploy generate-reset --no-verify-jwt=false
+          supabase functions deploy generate-quests --no-verify-jwt
+          supabase functions deploy generate-scripts --no-verify-jwt
+          supabase functions deploy generate-reset --no-verify-jwt
 
   generate-types:
     needs: deploy

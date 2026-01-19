@@ -21,6 +21,9 @@ import {
 // is more complex to set up with Zustand persist
 
 interface AppState {
+  // Current user ID - used to detect user changes
+  currentUserId: string | null;
+
   // User Profile
   userProfile: UserProfile | null;
   isOnboarded: boolean;
@@ -39,6 +42,10 @@ interface AppState {
   // UI State
   isLoading: boolean;
   error: string | null;
+
+  // Actions - User tracking
+  setCurrentUserId: (userId: string | null) => void;
+  checkAndResetForNewUser: (userId: string) => boolean;
 
   // Actions - Onboarding
   setUserProfile: (profile: UserProfile) => void;
@@ -81,6 +88,7 @@ const zustandStorage = {
 };
 
 const initialState = {
+  currentUserId: null as string | null,
   userProfile: null,
   isOnboarded: false,
   todayState: null,
@@ -96,6 +104,24 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...initialState,
+
+      // User tracking actions
+      setCurrentUserId: (userId) => set({ currentUserId: userId }),
+
+      checkAndResetForNewUser: (userId) => {
+        const currentUserId = get().currentUserId;
+        // If different user logged in, reset all data
+        if (currentUserId && currentUserId !== userId) {
+          console.log('[STORE] Different user detected, resetting data');
+          set({ ...initialState, currentUserId: userId });
+          return true; // Data was reset
+        }
+        // Set user ID if not set
+        if (!currentUserId) {
+          set({ currentUserId: userId });
+        }
+        return false; // No reset needed
+      },
 
       // User Profile Actions
       setUserProfile: (profile) => set({ userProfile: profile }),
@@ -150,6 +176,7 @@ export const useStore = create<AppState>()(
       name: 'ruach-compass-storage',
       storage: createJSONStorage(() => zustandStorage),
       partialize: (state) => ({
+        currentUserId: state.currentUserId,
         userProfile: state.userProfile,
         isOnboarded: state.isOnboarded,
         todayState: state.todayState,
