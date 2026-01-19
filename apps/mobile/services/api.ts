@@ -13,11 +13,18 @@ import {
   FALLBACK_RESET_PROTOCOLS
 } from '@ruach/shared';
 
-// Base fetch with Supabase auth
+// Timeout for API requests (30 seconds for AI generation)
+const API_TIMEOUT_MS = 30000;
+
+// Base fetch with Supabase auth and timeout
 const apiFetch = async <T>(
   url: string,
   body: object
 ): Promise<{ success: true; data: T } | { success: false; error: string }> => {
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
   try {
     // Try to refresh the session first
     const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
@@ -30,6 +37,7 @@ const apiFetch = async <T>(
     const { data: { session: currentSession } } = await supabase.auth.getSession();
 
     if (!currentSession) {
+      clearTimeout(timeoutId);
       return {
         success: false,
         error: 'Необходима авторизация'
@@ -46,7 +54,10 @@ const apiFetch = async <T>(
         'Authorization': `Bearer ${currentSession.access_token}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -61,7 +72,17 @@ const apiFetch = async <T>(
     }
 
     return { success: true, data: data as T };
-  } catch (error) {
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+
+    if (error.name === 'AbortError') {
+      console.error('[API] Request timeout after', API_TIMEOUT_MS, 'ms');
+      return {
+        success: false,
+        error: 'Запрос занял слишком много времени. Попробуй ещё раз.'
+      };
+    }
+
     console.error('[API] Error:', error);
     return {
       success: false,

@@ -20,10 +20,10 @@ export default function AuthScreen() {
   const { user, signInWithGoogle, isLoading } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
 
-  // Redirect when user is logged in
+  // Redirect when user is logged in - go to index to check onboarding status
   useEffect(() => {
     if (user) {
-      router.replace('/(tabs)');
+      router.replace('/');
     }
   }, [user]);
 

@@ -6,10 +6,13 @@ import { Tabs, Redirect } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useStore } from '@/store/useStore';
 import { Colors } from '@/constants/theme';
 
 export default function TabsLayout() {
   const { user, isLoading } = useAuth();
+  const isOnboarded = useStore((state) => state.isOnboarded);
+  const userProfile = useStore((state) => state.userProfile);
 
   console.log('[TABS] isLoading:', isLoading);
   console.log('[TABS] user:', user?.email ?? 'NO USER');
@@ -26,6 +29,11 @@ export default function TabsLayout() {
   // Not authenticated - redirect to auth
   if (!user) {
     return <Redirect href="/auth" />;
+  }
+
+  // Authenticated but not onboarded - redirect to onboarding
+  if (!isOnboarded || !userProfile) {
+    return <Redirect href="/onboarding" />;
   }
 
   return (
