@@ -8,6 +8,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
+import { getUserProfile } from '@/services/supabase-data';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,10 +29,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Sync onboarding state with Supabase
+  const syncOnboardingState = async (userId: string) => {
+    const store = useStore.getState();
+    const isOnboarded = store.isOnboarded;
+
+    // Check if profile exists in Supabase
+    const profile = await getUserProfile(userId);
+
+    if (!profile && isOnboarded) {
+      // Profile was deleted but local state thinks we're onboarded
+      // This happens after account deletion - reset local state
+      console.log('[AUTH] Profile not found in Supabase but local isOnboarded=true, resetting...');
+      store.resetAll();
+      store.setCurrentUserId(userId);
+    } else if (profile && !isOnboarded) {
+      // Profile exists but local state says not onboarded
+      // This can happen if local storage was cleared - restore onboarding state
+      console.log('[AUTH] Profile found in Supabase, setting isOnboarded=true');
+      store.setUserProfile(profile);
+      store.completeOnboarding();
+      store.setCurrentUserId(userId);
+    }
+  };
+
   useEffect(() => {
     const checkAndResetForNewUser = useStore.getState().checkAndResetForNewUser;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       console.log('[AUTH] Session:', session?.user?.email ?? 'NO USER');
       setSession(session);
       setUser(session?.user ?? null);
@@ -39,12 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check if this is a different user and reset data if needed
       if (session?.user?.id) {
         checkAndResetForNewUser(session.user.id);
+        // Sync onboarding state with Supabase
+        await syncOnboardingState(session.user.id);
       }
 
       setIsLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('[AUTH] State changed:', session?.user?.email ?? 'NO USER');
       setSession(session);
       setUser(session?.user ?? null);
@@ -52,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check if this is a different user and reset data if needed
       if (session?.user?.id) {
         checkAndResetForNewUser(session.user.id);
+        // Sync onboarding state with Supabase
+        await syncOnboardingState(session.user.id);
       }
 
       setIsLoading(false);
