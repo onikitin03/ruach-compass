@@ -438,21 +438,28 @@ export async function resetTodayData(userId: string): Promise<boolean> {
  * Delete all user data (for account deletion)
  */
 export async function deleteAllUserData(userId: string): Promise<boolean> {
+  console.log('[DB] Starting deleteAllUserData for user:', userId);
+
   // Delete in order: quests -> daily_states -> scripts_cache -> user_profiles
   const tables = ['quests', 'daily_states', 'scripts_cache', 'user_profiles'];
 
   for (const table of tables) {
-    const { error } = await supabase
+    const column = table === 'user_profiles' ? 'id' : 'user_id';
+    console.log(`[DB] Deleting from ${table} where ${column} = ${userId}`);
+
+    const { error, count } = await supabase
       .from(table)
-      .delete()
-      .eq(table === 'user_profiles' ? 'id' : 'user_id', userId);
+      .delete({ count: 'exact' })
+      .eq(column, userId);
 
     if (error) {
-      console.error(`[DB] Error deleting from ${table}:`, error);
+      console.error(`[DB] Error deleting from ${table}:`, error.message, error.code, error.details);
       return false;
     }
+
+    console.log(`[DB] Deleted ${count ?? 'unknown'} rows from ${table}`);
   }
 
-  console.log('[DB] Deleted all data for user:', userId);
+  console.log('[DB] Successfully deleted all data for user:', userId);
   return true;
 }
